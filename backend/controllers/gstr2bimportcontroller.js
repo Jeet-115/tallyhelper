@@ -232,3 +232,39 @@ export const getProcessedFile = async (req, res) => {
   }
 };
 
+export const getImportsByCompany = async (req, res) => {
+  try {
+    const { companyId } = req.params;
+    if (!companyId) {
+      return res.status(400).json({ message: "companyId is required" });
+    }
+
+    const imports = await GSTR2BImport.find({ company: companyId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json(imports);
+  } catch (error) {
+    console.error("getImportsByCompany Error:", error);
+    return res
+      .status(500)
+      .json({ message: error.message || "Failed to fetch imports" });
+  }
+};
+
+export const getImportById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const document = await GSTR2BImport.findById(id);
+    if (!document) {
+      return res.status(404).json({ message: "GSTR-2B import not found" });
+    }
+    return res.status(200).json(document);
+  } catch (error) {
+    console.error("getImportById Error:", error);
+    return res
+      .status(500)
+      .json({ message: error.message || "Failed to fetch GSTR-2B import" });
+  }
+};
+

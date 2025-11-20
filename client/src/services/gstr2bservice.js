@@ -23,3 +23,9 @@ export const processGstr2bImport = (id) =>
 export const fetchProcessedFile = (id) =>
   axiosInstance.get(`/api/gstr2b-imports/${id}/processed`);
 
+export const fetchImportsByCompany = (companyId) =>
+  axiosInstance.get(`/api/gstr2b-imports/company/${companyId}`);
+
+export const fetchImportById = (id) =>
+  axiosInstance.get(`/api/gstr2b-imports/${id}`);
+

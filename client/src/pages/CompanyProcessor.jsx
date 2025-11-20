@@ -7,6 +7,8 @@ import {
   processGstr2bImport,
   fetchProcessedFile,
 } from "../services/gstr2bservice";
+import { gstr2bHeaders } from "../utils/gstr2bHeaders";
+import { sanitizeFileName } from "../utils/fileUtils";
 
 const columnMap = {
   gstin: "gstin",
@@ -39,29 +41,6 @@ const slabConfig = [
   { slab: "28%", igst: 28, cgst: 14, sgst: 14 },
 ];
 
-const gstr2bHeaders = [
-  { key: "gstin", label: "GSTIN of supplier" },
-  { key: "tradeName", label: "Trade/Legal name" },
-  { key: "invoiceNumber", label: "Invoice number" },
-  { key: "invoiceType", label: "Invoice type" },
-  { key: "invoiceDate", label: "Invoice Date" },
-  { key: "invoiceValue", label: "Invoice Value (₹)" },
-  { key: "placeOfSupply", label: "Place of supply" },
-  { key: "reverseCharge", label: "Supply Attract Reverse Charge" },
-  { key: "taxableValue", label: "Taxable Value (₹)" },
-  { key: "igst", label: "Integrated Tax (₹)" },
-  { key: "cgst", label: "Central Tax (₹)" },
-  { key: "sgst", label: "State/UT Tax (₹)" },
-  { key: "cess", label: "Cess (₹)" },
-  { key: "gstrPeriod", label: "GSTR-1/1A/IFF/GSTR-5 Period" },
-  { key: "gstrFilingDate", label: "GSTR-1/1A/IFF/GSTR-5 Filing Date" },
-  { key: "itcAvailability", label: "ITC Availability" },
-  { key: "reason", label: "Reason" },
-  { key: "taxRatePercent", label: "Applicable % of Tax Rate" },
-  { key: "source", label: "Source" },
-  { key: "irn", label: "IRN" },
-  { key: "irnDate", label: "IRN Date" },
-];
 
 const outputColumns = [
   "Sr no.",
@@ -182,13 +161,6 @@ const formatDate = (value) => {
     ? value
     : date.toISOString().split("T")[0];
 };
-
-const sanitizeFileName = (value) =>
-  (value || "company")
-    .replace(/[^\w\s-]/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .toLowerCase();
 
 const CompanyProcessor = () => {
   const navigate = useNavigate();
@@ -460,59 +432,112 @@ const CompanyProcessor = () => {
     setStatus({ type: "success", message: "GSTR-2B Excel downloaded." });
   };
 
-  const handleDownloadProcessedExcel = async () => {
+  const ensureProcessedDoc = async () => {
     if (!importId) {
       setStatus({
         type: "error",
         message: "Import a sheet before downloading processed data.",
       });
-      return;
+      return null;
     }
 
+    if (processedDoc) return processedDoc;
+
     try {
-      let doc = processedDoc;
-      if (!doc) {
-        const { data } = await fetchProcessedFile(importId);
-        doc = data;
-        setProcessedDoc(data);
-      }
-
-      const matchedRows = doc?.processedRows || [];
-      const mismatchedRows = doc?.mismatchedRows || [];
-      if (!matchedRows.length && !mismatchedRows.length) {
-        setStatus({
-          type: "error",
-          message: "No processed rows available. Process the sheet first.",
-        });
-        return;
-      }
-
-      const workbook = XLSX.utils.book_new();
-      if (matchedRows.length) {
-        const processedSheet = XLSX.utils.json_to_sheet(matchedRows);
-        XLSX.utils.book_append_sheet(workbook, processedSheet, "Processed");
-      }
-      if (mismatchedRows.length) {
-        const mismatchedSheet = XLSX.utils.json_to_sheet(mismatchedRows);
-        XLSX.utils.book_append_sheet(workbook, mismatchedSheet, "Mismatched");
-      }
-      const filename = `${sanitizeFileName(
-        doc.company || company?.companyName || "company"
-      )}-tallymap.xlsx`;
-      XLSX.writeFile(workbook, filename);
-      setStatus({
-        type: "success",
-        message: "Processed Tally Map Excel downloaded.",
-      });
+      const { data } = await fetchProcessedFile(importId);
+      setProcessedDoc(data);
+      return data;
     } catch (error) {
-      console.error("Failed to download processed file:", error);
+      console.error("Failed to fetch processed file:", error);
       setStatus({
         type: "error",
         message:
           error?.response?.data?.message ||
-          "Unable to download processed data. Please process the sheet first.",
+          "Unable to fetch processed data. Please process the sheet first.",
       });
+      return null;
     }
+  };
+
+  const handleDownloadProcessedExcel = async () => {
+    const doc = await ensureProcessedDoc();
+    if (!doc) return;
+
+    const matchedRows = doc.processedRows || [];
+    if (!matchedRows.length) {
+      setStatus({
+        type: "error",
+        message: "No processed rows available. Process the sheet first.",
+      });
+      return;
+    }
+
+    const workbook = XLSX.utils.book_new();
+    const processedSheet = XLSX.utils.json_to_sheet(matchedRows);
+    XLSX.utils.book_append_sheet(workbook, processedSheet, "Processed");
+    const filename = `${sanitizeFileName(
+      doc.company || company?.companyName || "company"
+    )}-tallymap.xlsx`;
+    XLSX.writeFile(workbook, filename);
+    setStatus({
+      type: "success",
+      message: "Processed Tally Map Excel downloaded.",
+    });
+  };
+
+  const handleDownloadMismatchedExcel = async () => {
+    const doc = await ensureProcessedDoc();
+    if (!doc) return;
+
+    const mismatchedRows = doc.mismatchedRows || [];
+    if (!mismatchedRows.length) {
+      setStatus({
+        type: "error",
+        message: "No mismatched rows available.",
+      });
+      return;
+    }
+
+    const workbook = XLSX.utils.book_new();
+    const sanitizedRows = mismatchedRows.map(
+      ({
+        "Ledger Name 5%": _ln5,
+        "Ledger Amount 5%": _la5,
+        "Ledger DR/CR 5%": _ldr5,
+        "IGST Rate 5%": _ir5,
+        "CGST Rate 5%": _cr5,
+        "SGST/UTGST Rate 5%": _sr5,
+        "Ledger Name 12%": _ln12,
+        "Ledger Amount 12%": _la12,
+        "Ledger DR/CR 12%": _ldr12,
+        "IGST Rate 12%": _ir12,
+        "CGST Rate 12%": _cr12,
+        "SGST/UTGST Rate 12%": _sr12,
+        "Ledger Name 18%": _ln18,
+        "Ledger Amount 18%": _la18,
+        "Ledger DR/CR 18%": _ldr18,
+        "IGST Rate 18%": _ir18,
+        "CGST Rate 18%": _cr18,
+        "SGST/UTGST Rate 18%": _sr18,
+        "Ledger Name 28%": _ln28,
+        "Ledger Amount 28%": _la28,
+        "Ledger DR/CR 28%": _ldr28,
+        "IGST Rate 28%": _ir28,
+        "CGST Rate 28%": _cr28,
+        "SGST/UTGST Rate 28%": _sr28,
+        ...rest
+      }) => rest
+    );
+    const mismatchedSheet = XLSX.utils.json_to_sheet(sanitizedRows);
+    XLSX.utils.book_append_sheet(workbook, mismatchedSheet, "Mismatched");
+    const filename = `${sanitizeFileName(
+      doc.company || company?.companyName || "company"
+    )}-mismatched-data.xlsx`;
+    XLSX.writeFile(workbook, filename);
+    setStatus({
+      type: "success",
+      message: "Mismatched data Excel downloaded.",
+    });
   };
 
   const handleProcessSheet = () => {
@@ -655,6 +680,12 @@ const CompanyProcessor = () => {
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-white text-sm font-semibold hover:bg-emerald-700"
               >
                 Download Tally Map Excel
+              </button>
+              <button
+                onClick={handleDownloadMismatchedExcel}
+                className="rounded-lg bg-amber-500 px-4 py-2 text-white text-sm font-semibold hover:bg-amber-600"
+              >
+                Download Mismatched Excel
               </button>
               <button
                 onClick={handleProcessSheet}

@@ -250,7 +250,16 @@ export const processRows = async (rows) => {
     }
   });
 
-  return { matchedRows, mismatchedRows };
+  const renumber = (list) =>
+    list.map((entry, idx) => ({
+      ...entry,
+      slNo: idx + 1,
+    }));
+
+  return {
+    matchedRows: renumber(matchedRows),
+    mismatchedRows: renumber(mismatchedRows),
+  };
 };
 
 export const processAndStoreDocument = async (doc) => {

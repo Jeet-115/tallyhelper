@@ -26,6 +26,12 @@ const Home = () => {
         >
           Generate Purchase Register
         </button>
+        <button
+          onClick={() => navigate("/b2b-history")}
+          className="px-5 py-3 rounded-md border border-slate-200 text-slate-700 font-medium shadow hover:bg-slate-50 transition-colors"
+        >
+          B2B History
+        </button>
       </div>
     </main>
   );
