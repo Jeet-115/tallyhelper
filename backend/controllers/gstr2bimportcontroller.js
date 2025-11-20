@@ -88,9 +88,10 @@ export const parseB2BSheet = (workbook) => {
     defval: null,
   });
 
-  if (sheetRows.length <= 4) return [];
+  const DATA_START_ROW = 6; // skip multi-row headers (first 6 rows)
+  if (sheetRows.length <= DATA_START_ROW) return [];
 
-  const dataRows = sheetRows.slice(4);
+  const dataRows = sheetRows.slice(DATA_START_ROW);
 
   return dataRows
     .filter((row) => !isRowEmpty(row))
@@ -120,12 +121,38 @@ export const importB2BSheet = async (req, res) => {
       return res.status(400).json({ message: "No file provided" });
     }
 
+    const { companyId, companySnapshot } = req.body;
+
+    if (!companyId) {
+      return res
+        .status(400)
+        .json({ message: "companyId is required to import GSTR-2B data" });
+    }
+
+    let snapshot = companySnapshot;
+    if (typeof snapshot === "string") {
+      try {
+        snapshot = JSON.parse(snapshot);
+      } catch {
+        snapshot = null;
+      }
+    }
+
+    if (!snapshot) {
+      return res
+        .status(400)
+        .json({ message: "Valid companySnapshot is required" });
+    }
+
     const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
     const rows = parseB2BSheet(workbook);
 
     const document = await GSTR2BImport.create({
+      company: companyId,
+      companySnapshot: snapshot,
       sheetName: "B2B",
       rows,
+      sourceFileName: req.file.originalname,
       uploadedAt: new Date(),
     });
 

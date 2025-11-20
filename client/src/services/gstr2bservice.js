@@ -1,8 +1,14 @@
 import axiosInstance from "../utils/axiosInstance";
 
-export const uploadB2BSheet = (file) => {
+export const uploadB2BSheet = (file, payload = {}) => {
   const formData = new FormData();
   formData.append("file", file);
+  if (payload.companyId) {
+    formData.append("companyId", payload.companyId);
+  }
+  if (payload.companySnapshot) {
+    formData.append("companySnapshot", JSON.stringify(payload.companySnapshot));
+  }
 
   return axiosInstance.post("/api/gstr2b-imports/b2b", formData, {
     headers: {

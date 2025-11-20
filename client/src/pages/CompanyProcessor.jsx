@@ -204,7 +204,23 @@ const CompanyProcessor = () => {
     if (!file) return;
     setUploading(true);
     setStatus({ type: "", message: "" });
-    uploadB2BSheet(file)
+    const snapshot = {
+      _id: company._id,
+      companyName: company.companyName,
+      mailingName: company.mailingName,
+      address: company.address,
+      state: company.state,
+      country: company.country,
+      pincode: company.pincode,
+      gstin: company.gstin,
+      email: company.email,
+      telephone: company.telephone,
+    };
+
+    uploadB2BSheet(file, {
+      companyId: company._id,
+      companySnapshot: snapshot,
+    })
       .then(({ data }) => {
         setFileMeta({ name: file.name });
         setSheetRows(data.rows || []);
