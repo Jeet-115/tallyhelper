@@ -1,6 +1,8 @@
 import multer from "multer";
 import XLSX from "xlsx";
 import GSTR2BImport from "../models/gstr2bimportmodel.js";
+import ProcessedFile from "../models/processedfilemodel.js";
+import { processAndStoreDocument } from "../utils/gstr2bProcessor.js";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -9,7 +11,7 @@ const HEADER_SEQUENCE = [
   { key: "tradeName", label: "Trade/Legal name", type: "string" },
   { key: "invoiceNumber", label: "Invoice number", type: "string" },
   { key: "invoiceType", label: "Invoice type", type: "string" },
-  { key: "invoiceDate", label: "Invoice Date", type: "date" },
+  { key: "invoiceDate", label: "Invoice Date", type: "string" },
   { key: "invoiceValue", label: "Invoice Value(₹)", type: "number" },
   { key: "placeOfSupply", label: "Place of supply", type: "string" },
   { key: "reverseCharge", label: "Supply Attract Reverse Charge", type: "string" },
@@ -30,6 +32,25 @@ const HEADER_SEQUENCE = [
 
 const sanitizeString = (value) => {
   if (value === null || value === undefined) return null;
+  const stringValue = String(value).trim();
+  return stringValue.length ? stringValue : null;
+};
+
+const formatDisplayDate = (value) => {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "number") {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed) {
+      const dd = String(parsed.d).padStart(2, "0");
+      const mm = String(parsed.m).padStart(2, "0");
+      return `${dd}/${mm}/${parsed.y}`;
+    }
+  }
+  if (value instanceof Date) {
+    const dd = String(value.getDate()).padStart(2, "0");
+    const mm = String(value.getMonth() + 1).padStart(2, "0");
+    return `${dd}/${mm}/${value.getFullYear()}`;
+  }
   const stringValue = String(value).trim();
   return stringValue.length ? stringValue : null;
 };
@@ -100,7 +121,9 @@ export const parseB2BSheet = (workbook) => {
 
       HEADER_SEQUENCE.forEach(({ key, type }, index) => {
         const cell = row[index];
-        if (type === "number") {
+        if (key === "invoiceDate") {
+          entry[key] = formatDisplayDate(cell);
+        } else if (type === "number") {
           entry[key] = parseNumber(cell);
         } else if (type === "date") {
           entry[key] = parseDate(cell);
@@ -162,6 +185,50 @@ export const importB2BSheet = async (req, res) => {
     return res
       .status(500)
       .json({ message: error.message || "Failed to import B2B sheet" });
+  }
+};
+
+export const processB2BImport = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doc = await GSTR2BImport.findById(id);
+    if (!doc) {
+      return res.status(404).json({ message: "GSTR-2B import not found" });
+    }
+
+    const processed = await processAndStoreDocument(doc);
+    if (!processed) {
+      return res
+        .status(400)
+        .json({ message: "No rows to process for this document" });
+    }
+
+    return res.status(200).json({
+      message: "Processed successfully",
+      processedCount: processed.processedRows.length,
+      processed,
+    });
+  } catch (error) {
+    console.error("processB2BImport Error:", error);
+    return res
+      .status(500)
+      .json({ message: error.message || "Failed to process GSTR-2B data" });
+  }
+};
+
+export const getProcessedFile = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const processed = await ProcessedFile.findById(id);
+    if (!processed) {
+      return res.status(404).json({ message: "Processed file not found" });
+    }
+    return res.status(200).json(processed);
+  } catch (error) {
+    console.error("getProcessedFile Error:", error);
+    return res
+      .status(500)
+      .json({ message: error.message || "Failed to fetch processed file" });
   }
 };
 

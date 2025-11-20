@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { fetchGSTINNumbers } from "../services/gstinnumberservices";
-import { uploadB2BSheet } from "../services/gstr2bservice";
+import {
+  uploadB2BSheet,
+  processGstr2bImport,
+  fetchProcessedFile,
+} from "../services/gstr2bservice";
 
 const columnMap = {
   gstin: "gstin",
@@ -33,6 +37,30 @@ const slabConfig = [
   { slab: "12%", igst: 12, cgst: 6, sgst: 6 },
   { slab: "18%", igst: 18, cgst: 9, sgst: 9 },
   { slab: "28%", igst: 28, cgst: 14, sgst: 14 },
+];
+
+const gstr2bHeaders = [
+  { key: "gstin", label: "GSTIN of supplier" },
+  { key: "tradeName", label: "Trade/Legal name" },
+  { key: "invoiceNumber", label: "Invoice number" },
+  { key: "invoiceType", label: "Invoice type" },
+  { key: "invoiceDate", label: "Invoice Date" },
+  { key: "invoiceValue", label: "Invoice Value (₹)" },
+  { key: "placeOfSupply", label: "Place of supply" },
+  { key: "reverseCharge", label: "Supply Attract Reverse Charge" },
+  { key: "taxableValue", label: "Taxable Value (₹)" },
+  { key: "igst", label: "Integrated Tax (₹)" },
+  { key: "cgst", label: "Central Tax (₹)" },
+  { key: "sgst", label: "State/UT Tax (₹)" },
+  { key: "cess", label: "Cess (₹)" },
+  { key: "gstrPeriod", label: "GSTR-1/1A/IFF/GSTR-5 Period" },
+  { key: "gstrFilingDate", label: "GSTR-1/1A/IFF/GSTR-5 Filing Date" },
+  { key: "itcAvailability", label: "ITC Availability" },
+  { key: "reason", label: "Reason" },
+  { key: "taxRatePercent", label: "Applicable % of Tax Rate" },
+  { key: "source", label: "Source" },
+  { key: "irn", label: "IRN" },
+  { key: "irnDate", label: "IRN Date" },
 ];
 
 const outputColumns = [
@@ -155,6 +183,13 @@ const formatDate = (value) => {
     : date.toISOString().split("T")[0];
 };
 
+const sanitizeFileName = (value) =>
+  (value || "company")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .toLowerCase();
+
 const CompanyProcessor = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -167,6 +202,9 @@ const CompanyProcessor = () => {
   const [gstStateMap, setGstStateMap] = useState({});
   const [loadingGST, setLoadingGST] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [importId, setImportId] = useState(null);
+  const [processing, setProcessing] = useState(false);
+  const [processedDoc, setProcessedDoc] = useState(null);
 
   useEffect(() => {
     if (!company) return;
@@ -225,6 +263,8 @@ const CompanyProcessor = () => {
         setFileMeta({ name: file.name });
         setSheetRows(data.rows || []);
         setGeneratedRows([]);
+        setImportId(data._id || null);
+        setProcessedDoc(null);
         setStatus({
           type: "success",
           message: `Imported ${data.rows?.length || 0} rows from B2B sheet.`,
@@ -393,21 +433,115 @@ const CompanyProcessor = () => {
     });
   };
 
-  const handleDownload = () => {
-    if (!generatedRows.length) {
-      setStatus({ type: "error", message: "Generate data before downloading." });
+  const handleDownloadGstr2BExcel = () => {
+    if (!sheetRows.length) {
+      setStatus({
+        type: "error",
+        message: "Upload a B2B sheet before downloading.",
+      });
       return;
     }
-    const worksheet = XLSX.utils.json_to_sheet(generatedRows, {
-      header: outputColumns,
+
+    const worksheetRows = sheetRows.map((row) => {
+      const entry = {};
+      gstr2bHeaders.forEach(({ key, label }) => {
+        entry[label] = row?.[key] ?? "";
+      });
+      return entry;
     });
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetRows);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Company Sheet");
-    XLSX.writeFile(
-      workbook,
-      `${company.companyName || "company"}-B2B.xlsx`
-    );
-    setStatus({ type: "success", message: "Excel downloaded." });
+    XLSX.utils.book_append_sheet(workbook, worksheet, "GSTR-2B");
+    const filename = `${sanitizeFileName(
+      company?.companyName || "company"
+    )}-gstr2b.xlsx`;
+    XLSX.writeFile(workbook, filename);
+    setStatus({ type: "success", message: "GSTR-2B Excel downloaded." });
+  };
+
+  const handleDownloadProcessedExcel = async () => {
+    if (!importId) {
+      setStatus({
+        type: "error",
+        message: "Import a sheet before downloading processed data.",
+      });
+      return;
+    }
+
+    try {
+      let doc = processedDoc;
+      if (!doc) {
+        const { data } = await fetchProcessedFile(importId);
+        doc = data;
+        setProcessedDoc(data);
+      }
+
+      const matchedRows = doc?.processedRows || [];
+      const mismatchedRows = doc?.mismatchedRows || [];
+      if (!matchedRows.length && !mismatchedRows.length) {
+        setStatus({
+          type: "error",
+          message: "No processed rows available. Process the sheet first.",
+        });
+        return;
+      }
+
+      const workbook = XLSX.utils.book_new();
+      if (matchedRows.length) {
+        const processedSheet = XLSX.utils.json_to_sheet(matchedRows);
+        XLSX.utils.book_append_sheet(workbook, processedSheet, "Processed");
+      }
+      if (mismatchedRows.length) {
+        const mismatchedSheet = XLSX.utils.json_to_sheet(mismatchedRows);
+        XLSX.utils.book_append_sheet(workbook, mismatchedSheet, "Mismatched");
+      }
+      const filename = `${sanitizeFileName(
+        doc.company || company?.companyName || "company"
+      )}-tallymap.xlsx`;
+      XLSX.writeFile(workbook, filename);
+      setStatus({
+        type: "success",
+        message: "Processed Tally Map Excel downloaded.",
+      });
+    } catch (error) {
+      console.error("Failed to download processed file:", error);
+      setStatus({
+        type: "error",
+        message:
+          error?.response?.data?.message ||
+          "Unable to download processed data. Please process the sheet first.",
+      });
+    }
+  };
+
+  const handleProcessSheet = () => {
+    if (!importId) {
+      setStatus({
+        type: "error",
+        message: "Upload and import the sheet before processing.",
+      });
+      return;
+    }
+    setProcessing(true);
+    processGstr2bImport(importId)
+      .then(({ data }) => {
+        setProcessedDoc(data.processed || null);
+        setStatus({
+          type: "success",
+          message: `Processed ${data.processedCount || 0} rows successfully.`,
+        });
+      })
+      .catch((error) => {
+        console.error("Failed to process sheet:", error);
+        setStatus({
+          type: "error",
+          message:
+            error?.response?.data?.message ||
+            "Unable to process the sheet. Please try again.",
+        });
+      })
+      .finally(() => setProcessing(false));
   };
 
   const previewRows = useMemo(() => generatedRows.slice(0, 5), [generatedRows]);
@@ -511,12 +645,33 @@ const CompanyProcessor = () => {
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
             <div className="flex flex-wrap gap-3">
               <button
-                onClick={handleDownload}
+                onClick={handleDownloadGstr2BExcel}
+                className="rounded-lg bg-slate-900 px-4 py-2 text-white text-sm font-semibold hover:bg-slate-800"
+              >
+                Download GSTR-2B Excel
+              </button>
+              <button
+                onClick={handleDownloadProcessedExcel}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-white text-sm font-semibold hover:bg-emerald-700"
               >
-                Download Excel
+                Download Tally Map Excel
+              </button>
+              <button
+                onClick={handleProcessSheet}
+                disabled={processing}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                {processing ? "Processing..." : "Process Sheet"}
               </button>
             </div>
+
+            {processedDoc ? (
+              <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">
+                Stored {processedDoc.processedRows?.length || 0} matched rows
+                and {processedDoc.mismatchedRows?.length || 0} mismatched rows
+                for {processedDoc.company || "company"}.
+              </div>
+            ) : null}
 
             <div className="overflow-x-auto">
               <table className="min-w-full text-xs text-slate-600">

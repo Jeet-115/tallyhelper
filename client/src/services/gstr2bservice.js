@@ -17,3 +17,9 @@ export const uploadB2BSheet = (file, payload = {}) => {
   });
 };
 
+export const processGstr2bImport = (id) =>
+  axiosInstance.post(`/api/gstr2b-imports/${id}/process`);
+
+export const fetchProcessedFile = (id) =>
+  axiosInstance.get(`/api/gstr2b-imports/${id}/processed`);
+
