@@ -1,5 +1,8 @@
+import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { FiBriefcase, FiUsers } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
+import BackButton from "../components/BackButton";
 import { fetchCompanyMasters } from "../services/companymasterservices";
 
 const Companyselector = () => {
@@ -30,7 +33,7 @@ const Companyselector = () => {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-700">
+      <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 to-white text-amber-800">
         Loading companies...
       </main>
     );
@@ -38,54 +41,79 @@ const Companyselector = () => {
 
   if (error) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-50 text-rose-600">
+      <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 to-white text-rose-600">
         {error}
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
-      <section className="mx-auto max-w-6xl space-y-6">
-        <header className="space-y-2">
-          <p className="text-sm text-indigo-600 font-semibold uppercase tracking-wide">
+    <motion.main
+      className="min-h-screen bg-gradient-to-br from-amber-50 via-rose-50 to-white p-4 sm:p-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+    >
+      <section className="mx-auto max-w-6xl space-y-5">
+        <BackButton label="Back to dashboard" />
+        <motion.header
+          className="rounded-3xl border border-amber-100 bg-white/90 p-6 sm:p-8 shadow-lg backdrop-blur space-y-3"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">
             Step 1
           </p>
           <h1 className="text-3xl font-bold text-slate-900">
-            Select a company to continue
+            Choose a company to begin
           </h1>
-          <p className="text-slate-600">
-            Pick a company master to bind uploaded invoices and generated Excel
-            reports.
+          <p className="text-base text-slate-600">
+            We’ll use this company’s GST details while processing every file you
+            upload. Don’t worry—you can come back anytime and pick another.
           </p>
-        </header>
+        </motion.header>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <motion.div
+          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          initial="hidden"
+          animate="visible"
+          variants={{
+            hidden: { opacity: 0, y: 20 },
+            visible: {
+              opacity: 1,
+              y: 0,
+              transition: { staggerChildren: 0.05 },
+            },
+          }}
+        >
           {companies.map((company) => (
-            <button
+            <motion.button
               key={company._id}
               onClick={() => handleSelect(company)}
-              className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-indigo-400 hover:shadow transition-all"
+              className="rounded-2xl border border-amber-100 bg-white/90 p-5 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+              variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
             >
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase text-slate-400">
+              <div className="flex items-center gap-3 text-amber-600">
+                <FiBriefcase />
+                <span className="text-sm font-semibold uppercase tracking-wide text-amber-500">
                   Company Name
-                </p>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  {company.companyName}
-                </h2>
+                </span>
               </div>
+              <h2 className="mt-2 text-xl font-semibold text-slate-900">
+                {company.companyName}
+              </h2>
               <div className="mt-3 space-y-2 text-sm text-slate-600">
                 {company.address ? <p>{company.address}</p> : null}
                 <p>
                   {company.state}, {company.country} - {company.pincode}
                 </p>
                 <p>GSTIN: {company.gstin || "—"}</p>
-                <p>Email: {company.email || "—"}</p>
+                <p className="inline-flex items-center gap-1 text-amber-600">
+                  <FiUsers /> Contact: {company.email || "—"}
+                </p>
               </div>
-            </button>
+            </motion.button>
           ))}
-        </div>
+        </motion.div>
 
         {!companies.length ? (
           <p className="text-center text-slate-500">
@@ -93,7 +121,7 @@ const Companyselector = () => {
           </p>
         ) : null}
       </section>
-    </main>
+    </motion.main>
   );
 };
 

@@ -1,5 +1,8 @@
+import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { FiClock, FiFileText } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
+import BackButton from "../components/BackButton";
 import { fetchCompanyMasters } from "../services/companymasterservices";
 
 const B2BHistory = () => {
@@ -22,7 +25,7 @@ const B2BHistory = () => {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600">
+      <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 to-white text-amber-800">
         Loading companies...
       </main>
     );
@@ -30,40 +33,68 @@ const B2BHistory = () => {
 
   if (error) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-50 text-rose-600">
+      <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 to-white text-rose-600">
         {error}
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
-      <section className="mx-auto max-w-6xl space-y-6">
-        <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-widest text-indigo-500">
+    <motion.main
+      className="min-h-screen bg-gradient-to-br from-amber-50 via-rose-50 to-white p-4 sm:p-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+    >
+      <section className="mx-auto max-w-6xl space-y-5">
+        <BackButton label="Back to dashboard" />
+        <motion.header
+          className="rounded-3xl border border-amber-100 bg-white/90 p-6 sm:p-8 shadow-lg backdrop-blur space-y-3"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">
             History
           </p>
           <h1 className="text-3xl font-bold text-slate-900">
-            B2B Import History
+            Review every import in seconds
           </h1>
-          <p className="text-slate-600 text-sm">
-            Select a company to view its historical GSTR-2B imports and processed
-            data.
+          <p className="text-base text-slate-600">
+            Tap a company to open all of its processed files, mismatched data,
+            and download-ready Excel sheets.
           </p>
-        </header>
+        </motion.header>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <motion.div
+          className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          initial="hidden"
+          animate="visible"
+          variants={{
+            hidden: { opacity: 0, y: 20 },
+            visible: {
+              opacity: 1,
+              y: 0,
+              transition: { staggerChildren: 0.05 },
+            },
+          }}
+        >
           {companies.map((company) => (
-            <button
+            <motion.button
               key={company._id}
               onClick={() =>
                 navigate(`/b2b-history/${company._id}`, {
                   state: { company },
                 })
               }
-              className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-indigo-400 hover:shadow transition-all"
+              className="rounded-2xl border border-amber-100 bg-white/90 p-5 text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+              variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
             >
-              <h2 className="text-lg font-semibold text-slate-900">
+              <div className="flex items-center gap-3 text-amber-600">
+                <FiClock />
+                <span className="text-sm font-semibold uppercase tracking-wide text-amber-500">
+                  Company
+                </span>
+              </div>
+              <h2 className="mt-2 text-xl font-semibold text-slate-900">
                 {company.companyName}
               </h2>
               <p className="mt-2 text-sm text-slate-600">
@@ -73,9 +104,12 @@ const B2BHistory = () => {
               <p className="mt-1 text-xs text-slate-500">
                 GSTIN: {company.gstin || "—"}
               </p>
-            </button>
+              <span className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-amber-600">
+                <FiFileText /> View imports
+              </span>
+            </motion.button>
           ))}
-        </div>
+        </motion.div>
 
         {!companies.length ? (
           <p className="text-center text-slate-500">
@@ -83,7 +117,7 @@ const B2BHistory = () => {
           </p>
         ) : null}
       </section>
-    </main>
+    </motion.main>
   );
 };
 

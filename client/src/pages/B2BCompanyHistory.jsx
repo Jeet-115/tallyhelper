@@ -1,6 +1,15 @@
+import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
+import {
+  FiDownload,
+  FiEye,
+  FiFileText,
+  FiInfo,
+  FiLayers,
+} from "react-icons/fi";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import * as XLSX from "xlsx";
+import BackButton from "../components/BackButton";
 import ExcelPreviewModal from "../components/ExcelPreviewModal.jsx";
 import { fetchCompanyMasterById } from "../services/companymasterservices";
 import {
@@ -220,8 +229,22 @@ const B2BCompanyHistory = () => {
         });
         return;
       }
-      const columns = Object.keys(rows[0] || {});
-      const displayRows = rows.slice(0, 100); // limit for modal
+      const columnBlacklist = ["5%", "12%", "18%", "28%"];
+      let columns = Object.keys(rows[0] || {});
+      let displayRows = rows.slice(0, 100); // limit for modal
+
+      if (mismatched) {
+        columns = columns.filter(
+          (col) => !columnBlacklist.some((pattern) => col.includes(pattern))
+        );
+        displayRows = displayRows.map((row) =>
+          columns.reduce((acc, col) => {
+            acc[col] = row?.[col];
+            return acc;
+          }, {})
+        );
+      }
+
       setPreview({
         open: true,
         title: mismatched ? "Mismatched Rows Preview" : "Processed Rows Preview",
@@ -236,24 +259,28 @@ const B2BCompanyHistory = () => {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600">
+      <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 to-white text-amber-800">
         Loading history...
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
-      <section className="mx-auto max-w-6xl space-y-6">
+    <motion.main
+      className="min-h-screen bg-gradient-to-br from-amber-50 via-rose-50 to-white p-4 sm:p-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+    >
+      <section className="mx-auto max-w-6xl space-y-5">
         {pageError ? (
-          <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow">
             {pageError}
           </div>
         ) : null}
 
         {status.message ? (
           <div
-            className={`rounded-lg border px-4 py-3 text-sm ${
+            className={`rounded-2xl border px-4 py-3 text-sm shadow ${
               status.type === "error"
                 ? "border-rose-200 bg-rose-50 text-rose-700"
                 : "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -262,15 +289,15 @@ const B2BCompanyHistory = () => {
             {status.message}
           </div>
         ) : null}
-        <button
-          onClick={() => navigate("/b2b-history")}
-          className="text-sm text-indigo-600 hover:text-indigo-800"
-        >
-          ← Back to companies
-        </button>
 
-        <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-widest text-indigo-500">
+        <BackButton label="Back to history" fallback="/b2b-history" />
+
+        <motion.header
+          className="rounded-3xl border border-amber-100 bg-white/90 p-6 sm:p-8 shadow-lg backdrop-blur space-y-3"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">
             Company
           </p>
           <h1 className="text-3xl font-bold text-slate-900">
@@ -283,10 +310,23 @@ const B2BCompanyHistory = () => {
             </p>
             <p>GSTIN: {company?.gstin || "—"}</p>
           </div>
-        </header>
+          <div className="flex flex-wrap gap-3 text-xs text-amber-700">
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1">
+              <FiInfo /> Download Excel or preview data anytime
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-3 py-1 text-rose-600">
+              <FiLayers /> Mismatched preview hides tax-slab columns
+            </span>
+          </div>
+        </motion.header>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
-          <h2 className="text-xl font-semibold text-slate-900">
+        <motion.section
+          className="rounded-3xl border border-amber-100 bg-white/95 p-4 sm:p-6 shadow-lg backdrop-blur space-y-4"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+        >
+          <h2 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
+            <FiFileText className="text-amber-500" />
             GSTR-2B Imports
           </h2>
           <div className="overflow-x-auto">
@@ -296,8 +336,7 @@ const B2BCompanyHistory = () => {
                   <th className="px-2 py-2">Imported At</th>
                   <th className="px-2 py-2">Source File</th>
                   <th className="px-2 py-2">Rows</th>
-                  <th className="px-2 py-2">Raw Actions</th>
-                  <th className="px-2 py-2">Processed Actions</th>
+                  <th className="px-2 py-2">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -305,7 +344,7 @@ const B2BCompanyHistory = () => {
                   imports.map((imp) => (
                     <tr
                       key={imp._id}
-                      className="border-t border-slate-100 text-sm"
+                      className="border-t border-amber-50 text-sm"
                     >
                       <td className="px-2 py-3">
                         {new Date(imp.createdAt).toLocaleString()}
@@ -314,52 +353,52 @@ const B2BCompanyHistory = () => {
                       <td className="px-2 py-3">
                         {imp.rows?.length || imp.metadata?.totalRecords || 0}
                       </td>
-                      <td className="px-2 py-3 flex flex-wrap gap-2">
-                        <button
-                          onClick={() => downloadRawExcel(imp._id)}
-                          className="text-xs px-3 py-1 rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50"
-                        >
-                          Download
-                        </button>
-                        <button
-                          onClick={() => openRawPreview(imp._id)}
-                          className="text-xs px-3 py-1 rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50"
-                        >
-                          View
-                        </button>
-                      </td>
-                      <td className="px-2 py-3 flex flex-wrap gap-2">
-                        <button
-                          onClick={() => downloadProcessedExcel(imp._id, false)}
-                          className="text-xs px-3 py-1 rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50"
-                        >
-                          Download Processed
-                        </button>
-                        <button
-                          onClick={() => downloadProcessedExcel(imp._id, true)}
-                          className="text-xs px-3 py-1 rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50"
-                        >
-                          Download Mismatched
-                        </button>
-                        <button
-                          onClick={() => openProcessedPreview(imp._id, false)}
-                          className="text-xs px-3 py-1 rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50"
-                        >
-                          View Processed
-                        </button>
-                        <button
-                          onClick={() => openProcessedPreview(imp._id, true)}
-                          className="text-xs px-3 py-1 rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50"
-                        >
-                          View Mismatched
-                        </button>
+                      <td className="px-2 py-3">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => downloadRawExcel(imp._id)}
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50"
+                          >
+                            <FiDownload /> Raw
+                          </button>
+                          <button
+                            onClick={() => openRawPreview(imp._id)}
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50"
+                          >
+                            <FiEye /> Raw
+                          </button>
+                          <button
+                            onClick={() => downloadProcessedExcel(imp._id, false)}
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50"
+                          >
+                            <FiDownload /> Processed
+                          </button>
+                          <button
+                            onClick={() => downloadProcessedExcel(imp._id, true)}
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50"
+                          >
+                            <FiDownload /> Mismatched
+                          </button>
+                          <button
+                            onClick={() => openProcessedPreview(imp._id, false)}
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50"
+                          >
+                            <FiEye /> Processed
+                          </button>
+                          <button
+                            onClick={() => openProcessedPreview(imp._id, true)}
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-200 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50"
+                          >
+                            <FiEye /> Mismatched
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={4}
                       className="px-2 py-6 text-center text-slate-500"
                     >
                       No imports found for this company.
@@ -369,7 +408,7 @@ const B2BCompanyHistory = () => {
               </tbody>
             </table>
           </div>
-        </section>
+        </motion.section>
       </section>
 
       <ExcelPreviewModal
@@ -379,7 +418,7 @@ const B2BCompanyHistory = () => {
         rows={preview.rows}
         onClose={() => setPreview((prev) => ({ ...prev, open: false }))}
       />
-    </main>
+    </motion.main>
   );
 };
 

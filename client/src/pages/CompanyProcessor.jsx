@@ -1,6 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
+import {
+  FiAlertCircle,
+  FiDownload,
+  FiFilePlus,
+  FiPlayCircle,
+  FiRefreshCw,
+  FiUploadCloud,
+} from "react-icons/fi";
 import { fetchGSTINNumbers } from "../services/gstinnumberservices";
 import {
   uploadB2BSheet,
@@ -9,6 +18,7 @@ import {
 } from "../services/gstr2bservice";
 import { gstr2bHeaders } from "../utils/gstr2bHeaders";
 import { sanitizeFileName } from "../utils/fileUtils";
+import BackButton from "../components/BackButton";
 
 const columnMap = {
   gstin: "gstin",
@@ -177,6 +187,7 @@ const CompanyProcessor = () => {
   const [importId, setImportId] = useState(null);
   const [processing, setProcessing] = useState(false);
   const [processedDoc, setProcessedDoc] = useState(null);
+  const [downloadsUnlocked, setDownloadsUnlocked] = useState(false);
 
   useEffect(() => {
     if (!company) return;
@@ -241,6 +252,7 @@ const CompanyProcessor = () => {
           type: "success",
           message: `Imported ${data.rows?.length || 0} rows from B2B sheet.`,
         });
+        setDownloadsUnlocked(false);
       })
       .catch((error) => {
         console.error("Failed to upload B2B sheet:", error);
@@ -459,7 +471,19 @@ const CompanyProcessor = () => {
     }
   };
 
+  const guardDownloads = () => {
+    if (!downloadsUnlocked) {
+      setStatus({
+        type: "error",
+        message: "Please run Process Sheet first to unlock these downloads.",
+      });
+      return false;
+    }
+    return true;
+  };
+
   const handleDownloadProcessedExcel = async () => {
+    if (!guardDownloads()) return;
     const doc = await ensureProcessedDoc();
     if (!doc) return;
 
@@ -486,6 +510,7 @@ const CompanyProcessor = () => {
   };
 
   const handleDownloadMismatchedExcel = async () => {
+    if (!guardDownloads()) return;
     const doc = await ensureProcessedDoc();
     if (!doc) return;
 
@@ -552,6 +577,7 @@ const CompanyProcessor = () => {
     processGstr2bImport(importId)
       .then(({ data }) => {
         setProcessedDoc(data.processed || null);
+        setDownloadsUnlocked(true);
         setStatus({
           type: "success",
           message: `Processed ${data.processedCount || 0} rows successfully.`,
@@ -568,8 +594,6 @@ const CompanyProcessor = () => {
       })
       .finally(() => setProcessing(false));
   };
-
-  const previewRows = useMemo(() => generatedRows.slice(0, 5), [generatedRows]);
 
   if (!company) {
     return (
@@ -588,30 +612,40 @@ const CompanyProcessor = () => {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
+    <motion.main
+      className="min-h-screen bg-gradient-to-br from-amber-50 via-rose-50 to-white p-4 sm:p-6"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+    >
       <section className="mx-auto max-w-6xl space-y-6">
-        <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm flex flex-col gap-2">
-          <p className="text-xs font-semibold uppercase text-slate-400">
+        <BackButton label="Back to selector" fallback="/company-selector" />
+
+        <motion.header
+          className="rounded-3xl border border-amber-100 bg-white/90 p-6 sm:p-8 shadow-lg backdrop-blur flex flex-col gap-2"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">
             Step 2
           </p>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Prepare Purchase Register
+          <h1 className="text-3xl font-bold text-slate-900">
+            Prepare the purchase register
           </h1>
-          <div className="text-sm text-slate-500">
+          <div className="text-sm text-slate-600 space-y-1">
             <p>Company: {company.companyName}</p>
             <p>GSTIN: {company.gstin || "—"}</p>
             <p>State: {company.state}</p>
             {loadingGST ? (
-              <p className="text-xs text-slate-400 mt-1">
-                Loading GST state mapping...
+              <p className="text-xs text-amber-500 mt-1 flex items-center gap-2">
+                <FiRefreshCw className="animate-spin" /> Loading GST state mapping...
               </p>
             ) : null}
           </div>
-        </header>
+        </motion.header>
 
         {status.message ? (
           <div
-            className={`rounded-lg border px-4 py-3 text-sm ${
+            className={`rounded-2xl border px-4 py-3 text-sm shadow ${
               status.type === "error"
                 ? "border-rose-200 bg-rose-50 text-rose-700"
                 : "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -621,36 +655,46 @@ const CompanyProcessor = () => {
           </div>
         ) : null}
 
-        <section className="rounded-2xl border border-dashed border-slate-300 bg-white/70 p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Upload GST Excel
+        <motion.section
+          className="rounded-3xl border border-dashed border-amber-200 bg-white/90 p-6 shadow-lg backdrop-blur"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+        >
+          <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+            <FiUploadCloud className="text-amber-500" />
+            Upload GSTR-2B Excel
           </h2>
-          <p className="text-sm text-slate-500">
-            Accepted formats: .xlsx, .xls. Ensure headers follow the latest GST
-            layout.
+          <p className="text-sm text-slate-600">
+            Accepted formats: .xlsx, .xls. We’ll guide you through the rest.
           </p>
-          <label className="mt-4 flex h-32 w-full cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 text-indigo-600 transition hover:bg-indigo-100">
+          <label className="mt-4 flex h-36 w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-amber-200 bg-amber-50/50 text-amber-700 transition hover:bg-amber-50">
             <input
               type="file"
               accept=".xlsx,.xls"
               className="hidden"
               onChange={handleFileChange}
             />
-            <span className="text-sm font-medium">
-              {uploading
-                ? "Uploading..."
-                : fileMeta.name || "Click to choose file"}
+            <span className="text-sm font-semibold flex items-center gap-2">
+              <FiFilePlus />
+              {uploading ? "Uploading..." : fileMeta.name || "Click to choose file"}
             </span>
-            <span className="text-xs text-indigo-500 mt-1">
+            <span className="text-xs text-amber-500 mt-1">
               {fileMeta.name ? "Replace file" : "Max 10 MB"}
             </span>
           </label>
-        </section>
+        </motion.section>
 
         {sheetRows.length ? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <motion.section
+            className="rounded-3xl border border-amber-100 bg-white/95 p-6 shadow-lg backdrop-blur flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+          >
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-amber-500">
+                Step 3
+              </p>
+              <h3 className="text-xl font-semibold text-slate-900">
                 B2B sheet ready
               </h3>
               <p className="text-sm text-slate-500">
@@ -659,84 +703,79 @@ const CompanyProcessor = () => {
             </div>
             <button
               onClick={handleGenerate}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-white text-sm font-medium hover:bg-indigo-700"
+              className="inline-flex items-center gap-2 rounded-full bg-amber-500 px-5 py-2 text-white text-sm font-semibold shadow hover:bg-amber-600"
             >
+              <FiPlayCircle />
               Generate custom sheet
             </button>
-          </section>
+          </motion.section>
         ) : null}
 
         {generatedRows.length ? (
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+          <motion.section
+            className="rounded-3xl border border-amber-100 bg-white/95 p-6 shadow-lg backdrop-blur space-y-4"
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+          >
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={handleDownloadGstr2BExcel}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-white text-sm font-semibold hover:bg-slate-800"
+                className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-white text-sm font-semibold shadow hover:bg-slate-800"
               >
+                <FiDownload />
                 Download GSTR-2B Excel
               </button>
               <button
                 onClick={handleDownloadProcessedExcel}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-white text-sm font-semibold hover:bg-emerald-700"
+                disabled={!downloadsUnlocked}
+                className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-white text-sm font-semibold shadow hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Download Tally Map Excel
+                <FiDownload />
+                Tally Map Excel
               </button>
               <button
                 onClick={handleDownloadMismatchedExcel}
-                className="rounded-lg bg-amber-500 px-4 py-2 text-white text-sm font-semibold hover:bg-amber-600"
+                disabled={!downloadsUnlocked}
+                className="inline-flex items-center gap-2 rounded-full bg-amber-500 px-4 py-2 text-white text-sm font-semibold shadow hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Download Mismatched Excel
+                <FiDownload />
+                Mismatched Excel
               </button>
               <button
                 onClick={handleProcessSheet}
                 disabled={processing}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-full border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-60"
               >
+                <FiPlayCircle />
                 {processing ? "Processing..." : "Process Sheet"}
               </button>
             </div>
 
+            <div className="rounded-2xl border border-amber-100 bg-amber-50/60 px-4 py-3 text-sm text-amber-800 flex flex-col gap-2">
+              <span className="inline-flex items-center gap-2 font-semibold">
+                <FiAlertCircle />
+                Unlock downloads in two steps
+              </span>
+              <ol className="list-decimal list-inside text-xs text-slate-600 space-y-1">
+                <li>Click “Process Sheet” once your file is uploaded.</li>
+                <li>
+                  When processing finishes, Tally Map & Mismatched buttons will
+                  turn solid and become clickable.
+                </li>
+              </ol>
+            </div>
+
             {processedDoc ? (
-              <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">
-                Stored {processedDoc.processedRows?.length || 0} matched rows
-                and {processedDoc.mismatchedRows?.length || 0} mismatched rows
-                for {processedDoc.company || "company"}.
+              <div className="rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">
+                Stored {processedDoc.processedRows?.length || 0} matched rows and{" "}
+                {processedDoc.mismatchedRows?.length || 0} mismatched rows for{" "}
+                {processedDoc.company || "company"}.
               </div>
             ) : null}
-
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-xs text-slate-600">
-                <thead>
-                  <tr>
-                    {outputColumns.slice(0, 12).map((col) => (
-                      <th key={col} className="px-2 py-1 text-left font-semibold">
-                        {col}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewRows.map((row) => (
-                    <tr key={row["Sr no."]} className="border-t border-slate-100">
-                      {outputColumns.slice(0, 12).map((col) => (
-                        <td key={col} className="px-2 py-1">
-                          {row[col] ?? ""}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {generatedRows.length > 5 ? (
-                <p className="mt-2 text-xs text-slate-400">
-                  Showing first 5 rows out of {generatedRows.length}.
-                </p>
-              ) : null}
-            </div>
-          </section>
+          </motion.section>
         ) : null}
       </section>
-    </main>
+    </motion.main>
   );
 };
 
